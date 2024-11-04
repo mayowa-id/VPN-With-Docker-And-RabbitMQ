@@ -1,0 +1,67 @@
+# Base image: OpenJDK 11 with JDK (Java Development Kit)
+  FROM openjdk:11-jdk
+  
+  # Set the working directory inside the container to /app
+  WORKDIR /app
+  
+  # Update package lists and install iproute2
+  # iproute2 provides networking tools like 'ip' command needed for TUN interface
+  # apt-get clean removes package cache to reduce image size
+  RUN apt-get update && \
+  apt-get install -y iproute2 && \
+  apt-get clean
+  
+  # Copy the compiled JAR file from your local machine's target directory
+  # into the container's /app directory
+  COPY target/vpn-implementation.jar /app/
+  # Copy the startup script
+  COPY start.sh /app/
+  
+  # Make the startup script executable
+  RUN chmod +x /app/start.sh
+  
+  # Command to run when container starts
+  CMD ["/app/start.sh"]
+Now for the docker-compose.yml:
+  yamlCopy# Specify docker-compose format version
+version: '3'
+
+services:
+  # Define RabbitMQ service
+  rabbitmq:
+    # Use official RabbitMQ image with management plugin
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"    # Standard RabbitMQ port
+      - "15672:15672"  # Management interface port
+    networks:
+      - vpn_network    # Connect to our custom network
+
+  # First VPN node
+  vpn_node_1:
+    build: .          # Build using our Dockerfile
+    privileged: true  # Required for TUN interface creation
+    depends_on:       # Ensure RabbitMQ starts first
+      - rabbitmq
+    environment:      # Environment variables
+      - NODE_ID=node1 # Unique identifier for this node
+      - RABBITMQ_HOST=rabbitmq  # RabbitMQ hostname (service name)
+    networks:
+      - vpn_network
+
+  # Second VPN node (identical configuration but different NODE_ID)
+  vpn_node_2:
+    build: .
+    privileged: true
+    depends_on:
+      - rabbitmq
+    environment:
+      - NODE_ID=node2
+      - RABBITMQ_HOST=rabbitmq
+    networks:
+      - vpn_network
+
+# Define custom network for our VPN services
+networks:
+  vpn_network:
+    driver: bridge    # Use standard bridge networking
