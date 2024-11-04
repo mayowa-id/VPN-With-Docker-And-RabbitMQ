@@ -1,0 +1,5 @@
+<dependency>
+    <groupId>org.bouncycastle</groupId>
+    <artifactId>bcpkix-jdk18on</artifactId>
+    <version>1.76</version>
+</dependency>
